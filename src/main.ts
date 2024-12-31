@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as amqp from 'amqplib';
 
+const queue = 'login';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   await app.listen(process.env.PORT ?? 4000);
@@ -14,8 +15,6 @@ async function bootstrap() {
   });
   const channel = await connection.createChannel();
 
-  const queue = 'rpc_queue';
-
   // Ensure the queue exists
   await channel.assertQueue(queue, { durable: false });
   channel.prefetch(1);
@@ -25,14 +24,13 @@ async function bootstrap() {
   channel.consume(queue, async (msg) => {
     if (msg !== null) {
       const n = parseInt(msg.content.toString(), 10);
-      console.log(' [.] fib(%d)', n);
-
-      const result = fibonacci(n);
+      console.log('phone number:', n, 'processing');
 
       // Send the result back to the reply queue
+      await delay(5);
       channel.sendToQueue(
         msg.properties.replyTo,
-        Buffer.from(result.toString()),
+        Buffer.from(n.toString() + ' handled'),
         {
           correlationId: msg.properties.correlationId,
         },
@@ -40,17 +38,9 @@ async function bootstrap() {
 
       // Acknowledge the message
       channel.ack(msg);
+      console.log(`${msg.content.toString()} handled`);
     }
   });
-}
-
-// Fibonacci function
-function fibonacci(n: number): number {
-  if (n === 0 || n === 1) {
-    return n;
-  } else {
-    return fibonacci(n - 1) + fibonacci(n - 2);
-  }
 }
 
 // Delay function for demonstration (not used in current setup)
